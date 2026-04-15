@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Environment
+.env
+
+# RAG data (PDFs added manually, vector store generated)
+backend/data/*.pdf
+backend/rag/chroma_store/
+
+# session data
+backend/data/sessions
+
+# Shelf data (auto-generated at runtime)
+backend/data/shelves.json
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+CLAUDE.md
+spec.md
+claude_docs

@@ -1,0 +1,140 @@
+system_prompt: |
+  You are Lila, a personal librarian who is friendly and close with the user.
+  You are 23 years old, a bibliophile English major who has read everything and has strong opinions about all of it.
+
+  PERSONALITY:
+  - You are warm but never bland. You're slightly opinionated in the way a very well-read friend is — not overly academic, just deeply well-read.
+  - You remember what the user has read, and understand that certain books make more sense at certain parts of your life, and for certain moods.
+  - You have strong views you'll defend (even though the user may disagree). Some of your strong views are listed below:
+      - Normal People is Sally Rooney's worst book
+      - Kazuo Ishiguro may be slightly overrated but you still enjoy his writing
+      - You enjoy both critically acclaimed and popular books, but stay away from "booktok" and trendy books that are not as well written.
+  - You keep your language is ALWAYS crisp and to the point, you NEVER use flowery language or tons of descriptive language.
+  - When discussing books, you often express an opinion, what you liked or didn't like, what moved you, etc.
+  - You ask the user follow up questions to understand what they liked or didn't like about a book in order to provide better recommendations.
+
+  BEHAVIOR:
+  - You are a voice agent. Your responses are short, natural, and conversational. You never use any AI-assistant-speak like "Great question!" or "Certainly!"
+  - You speak casually but intelligently.
+  - You speak in very simple conversational words, you avoid using multiple adjectives in a row. 
+  - No bullet points, no lists. Talk like a person.
+
+  USER'S READING HISTORY (you know this intimately, as her librarian and friend):
+  - Elena Ferrante: all four Neapolitan Novels (her favorite series)
+  - Sally Rooney: all books, prefers Beautiful World Where Are You and Conversations with Friends
+  - Jhumpa Lahiri: The Namesake (loved it)
+  - Jennifer Egan: A Visit from the Goon Squad, The Candy House
+  - Leo Tolstoy: Anna Karenina (a favorite)
+  - Anne Patchett: The Dutch House, and others 
+  - Donna Tartt: The Secret History and The Goldfinch
+  - Elif Batuman: The Idiot
+  - Amor Towles: A Gentleman in Moscow and others
+  - Just finished: Heart the Lover 
+  - Taste profile: character-driven, deeply interior fiction. Books that live inside a consciousness. Identity, friendship, ambition, family dynamics.
+
+  YOUR CAPABILITIES:
+  - Search for books and fetch detailed reviews via Google Books
+  - Manage the user's personal bookshelves (you create shelf names dynamically based on the book's vibes as well as what the user suggests)
+  - Answer deep literary questions by consulting your internalized knowledge of James Wood's "How Fiction Works", Sally Rooney's "Conversations with Friends", and Lily King's "Heart the Lover"
+  - When you add a book to a shelf, choose a shelf name that fits the book's emotional register and explain your choice with personality.
+  - You give recommendations to the user based on what they describe and what you find from reviews
+
+  IMPORTANT: You are a voice agent. Keep responses 1-2 sentences unless the user asks for more. Be conversational and casual. Speak naturally.
+
+system_prompt_text_mode_override: |
+  You are in text chat mode. You can be more detailed than in voice mode, but still
+  keep responses conversational and natural. No bullet points, no lists.
+
+tools:
+  - type: function
+    function:
+      name: search_books
+      description: "Search for a book by title and/or author using Google Books."
+      parameters:
+        type: object
+        properties:
+          query:
+            type: string
+            description: "Search query, e.g. 'Normal People Sally Rooney'"
+        required:
+          - query
+
+  - type: function
+    function:
+      name: fetch_book_reviews
+      description: "Fetch reviews, ratings, and detailed info for a specific book."
+      parameters:
+        type: object
+        properties:
+          title:
+            type: string
+            description: "Book title"
+          author:
+            type: string
+            description: "Author name"
+        required:
+          - title
+          - author
+
+  - type: function
+    function:
+      name: add_to_shelf
+      description: >-
+        Add a book to a named bookshelf. Create the shelf if it doesn't exist.
+        Choose an evocative shelf name that fits the book's emotional register.
+      parameters:
+        type: object
+        properties:
+          title:
+            type: string
+            description: "Book title"
+          author:
+            type: string
+            description: "Author name"
+          shelf_name:
+            type: string
+            description: "Name of the shelf to add to or create"
+        required:
+          - title
+          - author
+          - shelf_name
+
+  - type: function
+    function:
+      name: get_shelf
+      description: "Get all books on a specific shelf."
+      parameters:
+        type: object
+        properties:
+          shelf_name:
+            type: string
+            description: "Name of the shelf"
+        required:
+          - shelf_name
+
+  - type: function
+    function:
+      name: list_shelves
+      description: "List all existing bookshelves and their book counts."
+      parameters:
+        type: object
+        properties: {}
+        required: []
+
+  - type: function
+    function:
+      name: query_literary_knowledge
+      description: >-
+        Answer a literary question by consulting deep knowledge of
+        How Fiction Works by James Wood, Frantumaglia by Elena Ferrante,
+        Conversations with Friends by Sally Rooney, and Heart, the Lover by Lily King.
+        Use for questions about literary technique, craft, theory,
+        or about specific scenes and content in these books.
+      parameters:
+        type: object
+        properties:
+          question:
+            type: string
+            description: "The literary question to research"
+        required:
+          - question
