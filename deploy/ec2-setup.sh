@@ -52,8 +52,10 @@ sudo systemctl daemon-reload
 sudo systemctl enable lila-api lila-agent
 
 echo ""
-echo "Step 6: Opening port 8000..."
+echo "Step 6: Opening ports..."
 sudo iptables -I INPUT -p tcp --dport 8000 -j ACCEPT 2>/dev/null || true
+sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
+sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
 
 echo ""
 echo "=== Setup complete ==="

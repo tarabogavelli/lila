@@ -103,7 +103,6 @@ All deployment scripts are in `deploy/`.
 - **Key pair**: Create or select one (you'll need this to SSH in)
 - **Security group**: Create a new one with these inbound rules:
   - SSH (port 22) from your IP
-  - Custom TCP (port 8000) from anywhere (0.0.0.0/0) — this is the API port
 - Launch the instance and note the **Public IPv4 address**
 
 #### 2. SSH in and run the setup script
@@ -145,33 +144,43 @@ python -m rag.ingest
 sudo systemctl start lila-api lila-agent
 ```
 
-#### 6. Verify
+#### 6. Set up HTTPS via Cloudflare Tunnel
+
+Vercel serves the frontend over HTTPS, so the backend also needs HTTPS.
+Cloudflare Tunnel handles this for free — no domain or SSL certificates needed.
 
 ```bash
-# Check both services are running
-sudo systemctl status lila-api lila-agent
-
-# Test the API
-curl http://localhost:8000/token
+# Create a free Cloudflare account at https://cloudflare.com first, then:
+bash /home/ec2-user/lila/deploy/setup-tunnel.sh
 ```
 
-You should see JSON with a token. From your local machine, also test:
+The script will print a URL to log in to Cloudflare — copy it and open it
+in your laptop's browser. After authorizing, the script creates a tunnel
+and prints your HTTPS backend URL (something like `https://<tunnel-id>.cfargotunnel.com`).
+
+#### 7. Verify the backend
+
 ```bash
-curl http://<EC2-PUBLIC-IP>:8000/token
+# Check all services are running
+sudo systemctl status lila-api lila-agent cloudflared
+
+# Test the API locally
+curl http://localhost:8000/token
 ```
 
 #### Useful commands
 
 ```bash
 # View live logs
-journalctl -u lila-agent -f    # Agent logs
-journalctl -u lila-api -f      # API server logs
+journalctl -u lila-agent -f     # Agent logs
+journalctl -u lila-api -f       # API server logs
+journalctl -u cloudflared -f    # Tunnel logs
 
 # Restart after code changes
 bash /home/ec2-user/lila/deploy/deploy.sh
 
 # Stop services
-sudo systemctl stop lila-api lila-agent
+sudo systemctl stop lila-api lila-agent cloudflared
 ```
 
 ### Frontend on Vercel
@@ -193,9 +202,9 @@ In Vercel project settings > Environment Variables, add:
 
 | Name | Value |
 |------|-------|
-| `VITE_API_BASE_URL` | `http://<EC2-PUBLIC-IP>:8000` |
+| `VITE_API_BASE_URL` | `https://<TUNNEL-ID>.cfargotunnel.com` |
 
-Replace `<EC2-PUBLIC-IP>` with your EC2 instance's public IP address.
+Use the tunnel URL printed by `setup-tunnel.sh`.
 
 #### 4. Deploy
 
