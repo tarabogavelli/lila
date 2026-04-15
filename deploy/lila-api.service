@@ -1,0 +1,15 @@
+[Unit]
+Description=Lila FastAPI Server
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/lila/backend
+EnvironmentFile=/home/ec2-user/lila/backend/.env
+ExecStart=/home/ec2-user/lila/backend/.venv/bin/uvicorn server:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

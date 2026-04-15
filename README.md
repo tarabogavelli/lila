@@ -75,7 +75,7 @@ python -m rag.ingest
 uvicorn server:app --host 0.0.0.0 --port 8000
 
 # Terminal 2: Start LiveKit agent
-python agent.py dev
+python -m agent.agent dev
 
 # Or: Text-only CLI (for testing tools & RAG without voice)
 python cli.py
@@ -88,6 +88,127 @@ npm install
 cp .env.example .env  # Set VITE_API_BASE_URL and VITE_LIVEKIT_URL
 npm run dev
 ```
+
+## Deployment
+
+### Backend on AWS EC2
+
+All deployment scripts are in `deploy/`.
+
+#### 1. Launch an EC2 instance
+
+- Go to AWS Console > EC2 > Launch Instance
+- **AMI**: Amazon Linux 2023
+- **Instance type**: `t3.medium` (2 vCPU, 4GB RAM)
+- **Key pair**: Create or select one (you'll need this to SSH in)
+- **Security group**: Create a new one with these inbound rules:
+  - SSH (port 22) from your IP
+  - Custom TCP (port 8000) from anywhere (0.0.0.0/0) — this is the API port
+- Launch the instance and note the **Public IPv4 address**
+
+#### 2. SSH in and run the setup script
+
+```bash
+ssh -i your-key.pem ec2-user@<EC2-PUBLIC-IP>
+
+# Download and run the setup script (replace with your repo URL)
+curl -O https://raw.githubusercontent.com/<your-user>/lila/main/deploy/ec2-setup.sh
+bash ec2-setup.sh https://github.com/<your-user>/lila.git
+```
+
+This installs Python, clones the repo, creates a virtualenv, installs dependencies,
+and configures systemd services.
+
+#### 3. Fill in API keys
+
+```bash
+nano /home/ec2-user/lila/backend/.env
+```
+
+Fill in all the keys from `.env.example` (LiveKit, OpenAI, Deepgram, Google Books).
+
+#### 4. Copy PDFs and run RAG ingestion
+
+```bash
+# From your local machine, copy PDFs to EC2:
+scp -i your-key.pem backend/data/*.pdf ec2-user@<EC2-PUBLIC-IP>:/home/ec2-user/lila/backend/data/
+
+# On EC2, run ingestion:
+cd /home/ec2-user/lila/backend
+source .venv/bin/activate
+python -m rag.ingest
+```
+
+#### 5. Start the services
+
+```bash
+sudo systemctl start lila-api lila-agent
+```
+
+#### 6. Verify
+
+```bash
+# Check both services are running
+sudo systemctl status lila-api lila-agent
+
+# Test the API
+curl http://localhost:8000/token
+```
+
+You should see JSON with a token. From your local machine, also test:
+```bash
+curl http://<EC2-PUBLIC-IP>:8000/token
+```
+
+#### Useful commands
+
+```bash
+# View live logs
+journalctl -u lila-agent -f    # Agent logs
+journalctl -u lila-api -f      # API server logs
+
+# Restart after code changes
+bash /home/ec2-user/lila/deploy/deploy.sh
+
+# Stop services
+sudo systemctl stop lila-api lila-agent
+```
+
+### Frontend on Vercel
+
+#### 1. Connect your repo
+
+- Go to [vercel.com](https://vercel.com) and sign in with GitHub
+- Click "Add New Project" and import your `lila` repository
+
+#### 2. Configure the project
+
+- **Root Directory**: Set to `frontend`
+- **Framework Preset**: Vite (auto-detected)
+- **Build Command**: `npm run build` (auto-detected)
+
+#### 3. Set the environment variable
+
+In Vercel project settings > Environment Variables, add:
+
+| Name | Value |
+|------|-------|
+| `VITE_API_BASE_URL` | `http://<EC2-PUBLIC-IP>:8000` |
+
+Replace `<EC2-PUBLIC-IP>` with your EC2 instance's public IP address.
+
+#### 4. Deploy
+
+Click "Deploy". Vercel builds and hosts the frontend. Every push to `main`
+auto-deploys.
+
+#### 5. Verify end-to-end
+
+Open the Vercel URL in your browser, click "Call Lila", and confirm:
+- Lila greets you (audio works)
+- You can speak and she responds (STT + LLM + TTS works)
+- Ask her to add a book to a shelf (tool calls work, bookshelf panel updates)
+- Ask a question about How Fiction Works (RAG works)
 
 ## AI Tools Used
 - Claude (Anthropic) — plan authoring and code generation
