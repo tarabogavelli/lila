@@ -147,22 +147,27 @@ sudo systemctl start lila-api lila-agent
 #### 6. Set up HTTPS via Cloudflare Tunnel
 
 Vercel serves the frontend over HTTPS, so the backend also needs HTTPS.
-Cloudflare Tunnel handles this for free — no domain or SSL certificates needed.
+Cloudflare Quick Tunnel handles this for free — no domain, no account,
+no SSL certificates needed.
 
 ```bash
-# Create a free Cloudflare account at https://cloudflare.com first, then:
 bash /home/ec2-user/lila/deploy/setup-tunnel.sh
 ```
 
-The script will print a URL to log in to Cloudflare — copy it and open it
-in your laptop's browser. After authorizing, the script creates a tunnel
-and prints your HTTPS backend URL (something like `https://<tunnel-id>.cfargotunnel.com`).
+The script starts a tunnel and prints your HTTPS URL
+(something like `https://something-random.trycloudflare.com`).
+
+Note: The URL changes if the tunnel process restarts. If that happens,
+update `VITE_API_BASE_URL` in Vercel and redeploy.
 
 #### 7. Verify the backend
 
 ```bash
-# Check all services are running
-sudo systemctl status lila-api lila-agent cloudflared
+# Check services are running
+sudo systemctl status lila-api lila-agent
+
+# Check tunnel is running
+pgrep -a cloudflared
 
 # Test the API locally
 curl http://localhost:8000/token
@@ -174,13 +179,18 @@ curl http://localhost:8000/token
 # View live logs
 journalctl -u lila-agent -f     # Agent logs
 journalctl -u lila-api -f       # API server logs
-journalctl -u cloudflared -f    # Tunnel logs
+cat /tmp/cloudflared.log         # Tunnel logs
 
 # Restart after code changes
 bash /home/ec2-user/lila/deploy/deploy.sh
 
+# Restart tunnel (URL will change — update Vercel env var)
+pkill cloudflared
+bash /home/ec2-user/lila/deploy/setup-tunnel.sh
+
 # Stop services
-sudo systemctl stop lila-api lila-agent cloudflared
+sudo systemctl stop lila-api lila-agent
+pkill cloudflared
 ```
 
 ### Frontend on Vercel
