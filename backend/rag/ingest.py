@@ -20,8 +20,6 @@ CHROMA_PATH = os.path.join(os.path.dirname(__file__), "chroma_store")
 DATA_PATH = os.path.join(os.path.dirname(__file__), "../data")
 
 PDF_CONFIGS = [
-    ("how_fiction_works.pdf", "how_fiction_works", "How Fiction Works", "James Wood"),
-    ("frantumaglia.pdf", "frantumaglia", "Frantumaglia", "Elena Ferrante"),
     (
         "conversations_with_friends.pdf",
         "conversations_with_friends",
@@ -79,8 +77,8 @@ def ingest():
     print(f"\nTotal documents (chapters): {len(documents)}")
 
     splitter = SentenceSplitter(
-        chunk_size=512,
-        chunk_overlap=50,
+        chunk_size=768,
+        chunk_overlap=128,
     )
     nodes = splitter.get_nodes_from_documents(documents)
     print(f"Total nodes (chunks): {len(nodes)}")
@@ -133,12 +131,14 @@ def ingest_course_notes():
             f"  Section {ch.number}: '{ch.title}' "
             f"(pages {ch.start_page}-{ch.end_page}, {len(ch.text)} chars)"
         )
+        book_title = ch.title.split(" — ")[0] if " — " in ch.title else ch.title
         doc = Document(
             text=ch.text,
             metadata={
                 "source": "bildungsroman_notes",
                 "title": "Bildungsroman Course Notes",
                 "author": "Lecture Notes",
+                "book_title": book_title,
                 "chapter_number": ch.number,
                 "chapter_title": ch.title,
                 "start_page": ch.start_page,
@@ -150,7 +150,7 @@ def ingest_course_notes():
         )
         documents.append(doc)
 
-    splitter = SentenceSplitter(chunk_size=512, chunk_overlap=50)
+    splitter = SentenceSplitter(chunk_size=4096, chunk_overlap=0)
     nodes = splitter.get_nodes_from_documents(documents)
     print(f"Course notes chunks: {len(nodes)}")
 

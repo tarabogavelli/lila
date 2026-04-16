@@ -26,6 +26,44 @@ CHAPTER_PATTERNS = [
 
 _PAGE_MARKER = "\n\n<<PAGE:{}>>\n\n"
 
+_TERMINAL_PUNCT = frozenset(".?!:;\"'\u2019\u201d")
+
+
+def _clean_text(text: str) -> str:
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    lines = text.split("\n")
+    merged = []
+    for line in lines:
+        stripped_line = line.strip()
+        if not stripped_line:
+            merged.append(line)
+            continue
+
+        prev_text = None
+        for j in range(len(merged) - 1, -1, -1):
+            if merged[j].strip():
+                prev_text = merged[j].rstrip()
+                break
+
+        if (
+            prev_text
+            and prev_text[-1] not in _TERMINAL_PUNCT
+            and stripped_line[0].islower()
+        ):
+            while merged and not merged[-1].strip():
+                merged.pop()
+            if merged:
+                merged[-1] = merged[-1].rstrip() + " " + stripped_line
+            else:
+                merged.append(line)
+        else:
+            merged.append(line)
+
+    result = "\n".join(merged)
+    result = re.sub(r"(?<!\n)\n(?!\n)", "\n\n", result)
+    return result
+
 
 def _read_pages(pdf_path: str) -> list[tuple[int, str]]:
     doc = fitz.open(pdf_path)
@@ -49,7 +87,7 @@ def _build_chapters_from_boundaries(
             Chapter(
                 number=1,
                 title=source_name,
-                text=full_text,
+                text=_clean_text(full_text),
                 start_page=0,
                 end_page=len(pages) - 1,
             )
@@ -63,6 +101,7 @@ def _build_chapters_from_boundaries(
         chapter_text = "\n\n".join(
             text for page_idx, text in pages if start_page <= page_idx <= end_page
         )
+        chapter_text = _clean_text(chapter_text)
         chapters.append(
             Chapter(
                 number=ch_num,
@@ -167,6 +206,7 @@ def _extract_heart_the_lover(
         chapter_text = "\n\n".join(
             text for pg, text in pages if start_page <= pg <= end_page
         )
+        chapter_text = _clean_text(chapter_text)
         chapters.append(
             Chapter(
                 number=ch_num,
@@ -223,7 +263,7 @@ def _extract_bildungsroman_notes(
 
     first_section_offset = sections[0][0] if sections else len(full_text)
     intro_text = full_text[:first_section_offset]
-    intro_text = page_marker_re.sub("", intro_text).strip()
+    intro_text = _clean_text(page_marker_re.sub("", intro_text).strip())
     if intro_text:
         ch_counter += 1
         chapters.append(
@@ -243,7 +283,7 @@ def _extract_bildungsroman_notes(
             next_offset = len(full_text)
 
         section_text = full_text[offset:next_offset]
-        section_text = page_marker_re.sub("", section_text).strip()
+        section_text = _clean_text(page_marker_re.sub("", section_text).strip())
 
         if sub_id is None and i + 1 < len(sections) and sections[i + 1][1] == book_num:
             if len(section_text) < 200:

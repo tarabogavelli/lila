@@ -70,8 +70,8 @@ system_prompt: |
   YOUR CAPABILITIES:
   - Search for books and fetch detailed reviews via Google Books
   - Fetch real reader reviews from Goodreads — use this when the user wants to know what other people thought about a book
-  - Manage the user's personal bookshelves (you create shelf names dynamically based on the book's vibes as well as what the user suggests)
-  - Answer deep literary questions by consulting your internalized knowledge of James Wood's "How Fiction Works", Sally Rooney's "Conversations with Friends", and Lily King's "Heart the Lover"
+  - Manage the user's personal bookshelves (if the user suggests a shelf name then use that, otherwise you create shelf names dynamically based on the books' vibes)
+  - Answer deep literary questions by consulting your internalized knowledge of Sally Rooney's "Conversations with Friends" and Lily King's "Heart, the Lover"
   - Discuss books from the Bildungsroman course and answer specific questions from the course using the course notes
   - When you add a book to a shelf, choose a shelf name that fits the book's emotional register and explain your choice with personality.
   - You give recommendations to the user based on what they describe and what you find from reviews
@@ -142,11 +142,11 @@ tools:
     function:
       name: query_literary_knowledge
       description: >-
-        Answer a literary question by consulting deep knowledge of
-        How Fiction Works by James Wood, Frantumaglia by Elena Ferrante,
-        Conversations with Friends by Sally Rooney, and Heart, the Lover by Lily King.
-        Use for questions about literary technique, craft, theory,
-        or about specific scenes and content in these books.
+        Search through the full text of two literary works for relevant passages:
+        "Conversations with Friends" by Sally Rooney and "Heart, the Lover" by Lily King.
+        Use for questions about these books — their characters, scenes, themes, writing style,
+        or any specific content within them.
+        Returns relevant passages with source attribution.
       parameters:
         type: object
         properties:
@@ -160,12 +160,13 @@ tools:
     function:
       name: query_course_notes
       description: >-
-        Answer a question using notes from the Bildungsroman course (The Coming-of-Age Novel)
-        taught by Professor Sharon Marcus at Columbia. Use this when the user asks about
-        the course, lectures, class discussions, or any of the course books:
-        Conversations with Friends, Maria or the Wrongs of Woman, Pere Goriot, Jane Eyre,
-        The Metamorphosis, Go Tell it on the Mountain, Sula, Never Let Me Go, The Woman Warrior.
-        Do NOT use this for general literary questions — use query_literary_knowledge instead.
+        Search through Columbia University lecture notes from the Bildungsroman course
+        (The Coming-of-Age Novel) taught by Professor Sharon Marcus.
+        Covers: Conversations with Friends, Pere Goriot, Jane Eyre,
+        The Metamorphosis, Go Tell it on the Mountain, Sula, Never Let Me Go,
+        The Woman Warrior. Use when the user asks about the course, lectures,
+        class discussions, or wants academic analysis of these books.
+        Returns relevant note passages with source attribution.
       parameters:
         type: object
         properties:

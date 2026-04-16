@@ -15,7 +15,7 @@ from livekit.agents import (
     TurnHandlingOptions,
     room_io,
 )
-from livekit.agents.llm import function_tool, ChatContext, ChatMessage
+from livekit.agents.llm import function_tool
 from livekit.plugins import deepgram, elevenlabs, openai, silero, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -25,7 +25,6 @@ from tools.shelves import get_store, remove_store
 from rag.query import (
     query_literary_knowledge,
     query_course_notes,
-    retrieve_course_chunks,
 )
 
 load_dotenv()
@@ -37,35 +36,6 @@ with open(_config_path) as f:
 
 _tool_descriptions = {
     t["function"]["name"]: t["function"]["description"] for t in _config["tools"]
-}
-
-COURSE_KEYWORDS = {
-    "bildungsroman",
-    "bildung",
-    "coming of age",
-    "coming-of-age",
-    "sharon marcus",
-    "professor marcus",
-    "the course",
-    "our class",
-    "lecture",
-    "pere goriot",
-    "balzac",
-    "jane eyre",
-    "bronte",
-    "go tell it on the mountain",
-    "james baldwin",
-    "sula",
-    "toni morrison",
-    "never let me go",
-    "kazuo ishiguro",
-    "woman warrior",
-    "maxine hong kingston",
-    "maria or the wrongs of woman",
-    "wollstonecraft",
-    "metamorphosis",
-    "kafka",
-    "spiritual development",
 }
 
 
@@ -94,36 +64,6 @@ class Lila(Agent):
                 )
             except Exception:
                 logger.debug("Failed to publish shelf_updated")
-
-    def _looks_course_related(self, text: str) -> bool:
-        lower = text.lower()
-        return any(kw in lower for kw in COURSE_KEYWORDS)
-
-    async def on_user_turn_completed(
-        self, turn_ctx: ChatContext, new_message: ChatMessage
-    ) -> None:
-        user_text = (
-            new_message.text_content if hasattr(new_message, "text_content") else ""
-        )
-        if not user_text:
-            return
-
-        try:
-            if self._looks_course_related(user_text):
-                chunks = await retrieve_course_chunks(user_text, top_k=3)
-                if chunks:
-                    context_str = "\n\n".join(chunks)
-                    turn_ctx.add_message(
-                        role="system",
-                        content=(
-                            "Relevant context from your Bildungsroman course notes:\n\n"
-                            + context_str
-                        ),
-                    )
-        except Exception:
-            logger.warning(
-                "Failed to retrieve RAG chunks in on_user_turn_completed", exc_info=True
-            )
 
     @function_tool(description=_tool_descriptions["search_books"])
     async def search_books(self, query: str) -> str:
@@ -230,10 +170,10 @@ server = AgentServer()
 
 @server.rtc_session()
 async def entrypoint(ctx: agents.JobContext):
-    from rag.query import get_course_query_engine, get_query_engine
+    from rag.query import _get_index, _get_course_index
 
-    get_query_engine()
-    get_course_query_engine()
+    _get_index()
+    _get_course_index()
 
     await ctx.connect()
 

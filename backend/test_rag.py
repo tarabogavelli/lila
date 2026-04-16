@@ -1,185 +1,138 @@
 """
-RAG testing tool — interactive queries and automated batch runs.
+RAG testing tool — tests the retrieval-only pipeline with metadata filtering and reranking.
 
 Usage:
-    python test_rag.py                  # interactive REPL
-    python test_rag.py batch            # run all queries from rag_queries.json
-    python test_rag.py batch --verbose  # batch with full chunk details
+    python test_rag.py              # run all queries, save full output to rag_test_results.md
+    python test_rag.py interactive  # interactive REPL
 """
 
-import json
+import asyncio
 import os
 import sys
+from datetime import datetime
 
 from dotenv import load_dotenv
 
-from rag.query import get_query_engine
+from rag.query import query_literary_knowledge, query_course_notes
 
 load_dotenv()
 
 CYAN = "\033[96m"
 YELLOW = "\033[93m"
 GREEN = "\033[92m"
-RED = "\033[91m"
 DIM = "\033[2m"
 BOLD = "\033[1m"
 RESET = "\033[0m"
 
-QUERIES_FILE = os.path.join(os.path.dirname(__file__), "rag_queries.json")
+OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "rag_test_results.md")
+
+LITERARY_QUERIES = [
+    "At the beginning of chapter 30 in Conversations with Friends, Bobbi and Frances are talking. What does Frances tell Bobbi that Melissa said about here?",
+    "What happens to Frances in the church in Conversations with Friends?",
+    "Which church does Frances go into in chapter 29 of Conversations with Friends?",
+    "What is the protagonist's husband's name in Heart the Lover?",
+]
+
+COURSE_QUERIES = [
+    "What is diasporic bildung and how does it relate to The Woman Warrior?",
+    "How does Never Let Me Go use a bifocal narrative perspective?",
+    "What does Professor Marcus say about Sula's hyper-individualism?",
+    "What are the 2 types of chapters in Never Let Me Go according to sharon marcus?",
+    "What do white tigers represent in The Woman Warrior?",
+]
 
 
-def run_query(engine, question: str) -> dict:
-    response = engine.query(question)
+async def run_all():
+    lines = []
+    lines.append("# RAG Test Results\n")
+    lines.append(f"Run: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    chunks = []
-    for node in response.source_nodes:
-        meta = node.metadata
-        chunks.append(
-            {
-                "score": round(node.score, 4) if node.score else None,
-                "source": meta.get("title", "Unknown"),
-                "chapter_number": meta.get("chapter_number", "?"),
-                "chapter_title": meta.get("chapter_title", ""),
-                "pages": f"{meta.get('start_page', '?')}-{meta.get('end_page', '?')}",
-                "text_preview": node.text[:300] if node.text else "",
-            }
-        )
+    print(f"\n{BOLD}{'=' * 70}{RESET}")
+    print(f"{BOLD}  RAG Pipeline Test — Literary Texts{RESET}")
+    print(f"{BOLD}{'=' * 70}{RESET}")
 
-    sources = []
-    for ch in chunks:
-        s = f"{ch['source']}, Chapter {ch['chapter_number']}"
-        if ch["chapter_title"]:
-            s += f" ('{ch['chapter_title'][:50]}')"
-        if s not in sources:
-            sources.append(s)
+    lines.append("\n## Literary Texts\n")
 
-    return {
-        "answer": str(response.response),
-        "sources": sources,
-        "chunks": chunks,
-    }
+    for i, q in enumerate(LITERARY_QUERIES, 1):
+        print(f"\n{YELLOW}{BOLD}[Literary {i}/{len(LITERARY_QUERIES)}]{RESET} {q}")
+        result = await query_literary_knowledge(q)
+        _print_result(result)
 
+        lines.append(f"### Query {i}: {q}\n")
+        lines.append(f"{result}\n")
+        lines.append("\n---\n")
 
-def print_result(result: dict, verbose: bool = False):
-    print(f"\n{CYAN}{BOLD}Answer:{RESET}")
-    print(f"{CYAN}{result['answer']}{RESET}")
+    print(f"\n{BOLD}{'=' * 70}{RESET}")
+    print(f"{BOLD}  RAG Pipeline Test — Course Notes (Bildungsroman){RESET}")
+    print(f"{BOLD}{'=' * 70}{RESET}")
 
-    print(f"\n{GREEN}{BOLD}Sources:{RESET}")
-    for s in result["sources"]:
-        print(f"  {GREEN}- {s}{RESET}")
+    lines.append("\n## Course Notes\n")
 
-    if verbose:
-        print(f"\n{YELLOW}{BOLD}Retrieved Chunks ({len(result['chunks'])}):{RESET}")
-        for i, ch in enumerate(result["chunks"], 1):
-            print(f"\n  {YELLOW}--- Chunk {i} ---{RESET}")
-            print(f"  {DIM}Score:   {ch['score']}{RESET}")
-            print(
-                f"  {DIM}Source:  {ch['source']}, Chapter {ch['chapter_number']}{RESET}"
-            )
-            print(f"  {DIM}Pages:   {ch['pages']}{RESET}")
-            preview = ch["text_preview"].replace("\n", " ")
-            print(f"  {DIM}Preview: {preview}...{RESET}")
+    for i, q in enumerate(COURSE_QUERIES, 1):
+        print(f"\n{GREEN}{BOLD}[Course {i}/{len(COURSE_QUERIES)}]{RESET} {q}")
+        result = await query_course_notes(q)
+        _print_result(result)
+
+        lines.append(f"### Query {i}: {q}\n")
+        lines.append(f"{result}\n")
+        lines.append("\n---\n")
+
+    with open(OUTPUT_FILE, "w") as f:
+        f.write("\n".join(lines))
+
+    total = len(LITERARY_QUERIES) + len(COURSE_QUERIES)
+    print(f"\n{BOLD}{'=' * 70}{RESET}")
+    print(f"{BOLD}  Done — {total} queries executed{RESET}")
+    print(f"{BOLD}  Full output saved to: {OUTPUT_FILE}{RESET}\n")
 
 
-def interactive(engine):
-    print(f"\n{BOLD}RAG Query Tester{RESET} — type a question, see full results")
-    print(f"{DIM}Commands: 'verbose' toggles chunk details, 'quit' exits{RESET}\n")
-
-    verbose = True
+async def interactive():
+    print(f"\n{BOLD}RAG Interactive Tester{RESET}")
+    print(
+        f"{DIM}Prefix with 'c:' for course notes, otherwise queries literary texts{RESET}"
+    )
+    print(f"{DIM}Type 'quit' to exit{RESET}\n")
 
     while True:
         try:
-            question = input(f"{BOLD}Query: {RESET}").strip()
+            raw = input(f"{BOLD}Query: {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nBye!")
             break
 
-        if not question:
+        if not raw:
             continue
-        if question.lower() in ("quit", "exit", "q"):
+        if raw.lower() in ("quit", "exit", "q"):
             print("Bye!")
             break
-        if question.lower() == "verbose":
-            verbose = not verbose
-            print(f"Verbose mode: {'ON' if verbose else 'OFF'}")
-            continue
 
-        result = run_query(engine, question)
-        print_result(result, verbose=verbose)
+        if raw.lower().startswith("c:"):
+            question = raw[2:].strip()
+            print(f"{DIM}→ Querying course notes...{RESET}")
+            result = await query_course_notes(question)
+        else:
+            question = raw
+            print(f"{DIM}→ Querying literary texts...{RESET}")
+            result = await query_literary_knowledge(question)
+
+        _print_result(result)
         print()
 
 
-def batch(engine, verbose: bool = False):
-    if not os.path.exists(QUERIES_FILE):
-        print(f"{RED}No queries file found at {QUERIES_FILE}{RESET}")
-        print("Creating template with example queries...\n")
-        create_default_queries()
-
-    with open(QUERIES_FILE) as f:
-        queries = json.load(f)
-
-    print(f"\n{BOLD}Running {len(queries)} queries from rag_queries.json{RESET}\n")
-    print("=" * 70)
-
-    results = []
-    for i, entry in enumerate(queries, 1):
-        question = entry["question"]
-        tag = entry.get("tag", f"query_{i}")
-
-        print(f"\n{BOLD}[{i}/{len(queries)}] {tag}{RESET}")
-        print(f"{DIM}{question}{RESET}")
-
-        result = run_query(engine, question)
-        result["tag"] = tag
-        result["question"] = question
-        results.append(result)
-
-        print_result(result, verbose=verbose)
-        print("\n" + "-" * 70)
-
-    print(f"\n{BOLD}Summary{RESET}")
-    print(f"  Queries run: {len(results)}")
-    for r in results:
-        src_count = len(r["sources"])
-        chunk_count = len(r["chunks"])
-        print(f"  {DIM}[{r['tag']}] {src_count} sources, {chunk_count} chunks{RESET}")
-
-    output_path = os.path.join(os.path.dirname(__file__), "rag_test_results.json")
-    with open(output_path, "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"\n  Results saved to {output_path}")
-
-
-def create_default_queries():
-    default = [
-        {
-            "tag": "free_indirect_style",
-            "question": "What is free indirect style according to James Wood?",
-        },
-        {
-            "tag": "flaubert_detail",
-            "question": "What does James Wood say about Flaubert's use of detail?",
-        },
-        {
-            "tag": "character_creation",
-            "question": "How does James Wood describe the creation of fictional character?",
-        },
-        {
-            "tag": "narrator_reliability",
-            "question": "What does Wood say about the reliability of narrators?",
-        },
-    ]
-    with open(QUERIES_FILE, "w") as f:
-        json.dump(default, f, indent=2)
-    print(f"Created {QUERIES_FILE} with {len(default)} default queries.")
-    print("Edit this file to add your own queries.\n")
+def _print_result(result: str):
+    chunks = result.split("\n\n---\n\n")
+    print(f"{DIM}  Chunks returned: {len(chunks)}{RESET}")
+    for i, chunk in enumerate(chunks, 1):
+        lines = chunk.split("\n", 1)
+        header = lines[0] if lines else ""
+        body = lines[1] if len(lines) > 1 else ""
+        preview = body[:200].replace("\n", " ").strip()
+        print(f"\n  {CYAN}{BOLD}Chunk {i}:{RESET} {CYAN}{header}{RESET}")
+        print(f"  {DIM}{preview}...{RESET}")
 
 
 if __name__ == "__main__":
-    engine = get_query_engine()
-
-    if len(sys.argv) > 1 and sys.argv[1] == "batch":
-        verbose = "--verbose" in sys.argv
-        batch(engine, verbose=verbose)
+    if len(sys.argv) > 1 and sys.argv[1] == "interactive":
+        asyncio.run(interactive())
     else:
-        interactive(engine)
+        asyncio.run(run_all())
