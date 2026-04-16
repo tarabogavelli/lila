@@ -1,7 +1,8 @@
-# Lila — Voice Book Companion
+# Lila 
 
 Lila is a voice agent that feels like calling a well-read friend. She's 23, an opinionated English major who has read everything — and she knows *your* reading history, your moods, and what you're likely to love next.
-She and the user took a class together in college: **BILDUNGSROMAN: The Coming-of-Age Novel**. Lila has a perfect memory of those lecture notes, so you can talk through the books, themes, and the professor's analysis — and use that lens to think about what to read next.
+
+She and the user took a class together in college: **Bildungsroman: The Coming-of-Age Novel**. Lila has a perfect memory of those lecture notes, so you can talk through the books, themes, and the professor's analysis — and use that lens to think about what to read next.
 
 ## System Architecture
 
