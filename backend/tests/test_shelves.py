@@ -1,11 +1,22 @@
+import os
+import shutil
 from datetime import datetime
 
-from tools.shelves import ShelfStore, get_store, remove_store
+import pytest
+
+from tools.shelves import DATA_DIR, ShelfStore, get_store, remove_store
+
+
+@pytest.fixture(autouse=True)
+def clean_shelf_files():
+    yield
+    if os.path.exists(DATA_DIR):
+        shutil.rmtree(DATA_DIR)
 
 
 class TestShelfStoreAddBook:
     def test_add_book_creates_shelf(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         store.add_book("favorites", "Normal People", "Sally Rooney")
         books = store.get_shelf("favorites")
         assert len(books) == 1
@@ -13,14 +24,14 @@ class TestShelfStoreAddBook:
         assert books[0]["author"] == "Sally Rooney"
 
     def test_add_book_appends_to_existing_shelf(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         store.add_book("favorites", "Normal People", "Sally Rooney")
         store.add_book("favorites", "The Namesake", "Jhumpa Lahiri")
         books = store.get_shelf("favorites")
         assert len(books) == 2
 
     def test_add_book_stores_all_metadata(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         store.add_book(
             "shelf", "Title", "Author", isbn="9781234567890", cover_url="http://img.jpg"
         )
@@ -32,7 +43,7 @@ class TestShelfStoreAddBook:
         assert "added_at" in book
 
     def test_add_book_timestamp_is_valid_iso(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         store.add_book("shelf", "Title", "Author")
         ts = store.get_shelf("shelf")[0]["added_at"]
         parsed = datetime.fromisoformat(ts)
@@ -41,15 +52,15 @@ class TestShelfStoreAddBook:
 
 class TestShelfStoreRead:
     def test_get_shelf_nonexistent(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         assert store.get_shelf("nonexistent") == []
 
     def test_get_all_shelves_empty(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         assert store.get_all_shelves() == {}
 
     def test_get_all_shelves_multiple_shelves(self):
-        store = ShelfStore()
+        store = ShelfStore("test-temp")
         store.add_book("a", "Book A", "Author A")
         store.add_book("b", "Book B", "Author B")
         store.add_book("c", "Book C", "Author C")

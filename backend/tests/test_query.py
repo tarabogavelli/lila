@@ -21,7 +21,7 @@ class TestQueryLiteraryKnowledge:
             ],
         )
         mock_engine = MagicMock()
-        mock_engine.query.return_value = response
+        mock_engine.aquery.return_value = response
 
         with patch("rag.query.get_query_engine", return_value=mock_engine):
             result = await query_literary_knowledge("What is free indirect style?")
@@ -36,7 +36,7 @@ class TestQueryLiteraryKnowledge:
     async def test_no_sources_fallback(self, mock_query_response):
         response = mock_query_response("Some answer.", [])
         mock_engine = MagicMock()
-        mock_engine.query.return_value = response
+        mock_engine.aquery.return_value = response
 
         with patch("rag.query.get_query_engine", return_value=mock_engine):
             result = await query_literary_knowledge("question")
@@ -51,7 +51,7 @@ class TestQueryLiteraryKnowledge:
         }
         response = mock_query_response("Answer.", [same_meta, same_meta])
         mock_engine = MagicMock()
-        mock_engine.query.return_value = response
+        mock_engine.aquery.return_value = response
 
         with patch("rag.query.get_query_engine", return_value=mock_engine):
             result = await query_literary_knowledge("question")
@@ -65,7 +65,7 @@ class TestQueryLiteraryKnowledge:
             [{"title": "Frantumaglia", "chapter_number": 5, "chapter_title": ""}],
         )
         mock_engine = MagicMock()
-        mock_engine.query.return_value = response
+        mock_engine.aquery.return_value = response
 
         with patch("rag.query.get_query_engine", return_value=mock_engine):
             result = await query_literary_knowledge("question")
@@ -76,7 +76,7 @@ class TestQueryLiteraryKnowledge:
     async def test_missing_metadata_fields(self, mock_query_response):
         response = mock_query_response("Answer.", [{}])
         mock_engine = MagicMock()
-        mock_engine.query.return_value = response
+        mock_engine.aquery.return_value = response
 
         with patch("rag.query.get_query_engine", return_value=mock_engine):
             result = await query_literary_knowledge("question")

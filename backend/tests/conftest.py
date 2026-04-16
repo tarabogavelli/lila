@@ -121,3 +121,4 @@ def reset_query_engine():
     import rag.query as qmod
 
     qmod._query_engine = None
+    qmod._index = None
