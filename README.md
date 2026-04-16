@@ -38,7 +38,7 @@ Two ChromaDB collections:
 | `lila_library` | *Conversations with Friends* (Sally Rooney) + *Heart the Lover* (Lily King) |
 | `bildungsroman_notes` | Columbia Bildungsroman course lecture notes |
 
-**Ingestion pipeline** (run once, via `python -m rag.ingest`):
+**Ingestion pipeline** (pre-built and included in the repo; only needed if adding new PDFs):
 1. PDFs parsed with PyMuPDF
 2. Chapter boundaries detected via regex (e.g. "Chapter N", ALL-CAPS titles)
 3. Each chapter → LlamaIndex `Document` with metadata: `{source, title, author, chapter_number, chapter_title}`
