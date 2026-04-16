@@ -25,16 +25,17 @@ Frontend (Vercel) → FastAPI (EC2) → /token (JWT generation)
 ```
 
 ## How RAG Works
-1. Two PDFs ingested: How Fiction Works and Frantumaglia
+1. PDFs ingested: How Fiction Works, Frantumaglia, Conversations with Friends, Heart the Lover
 2. **Chapter boundaries extracted** from PDFs using PyMuPDF regex detection
 3. Each chapter becomes a LlamaIndex Document with metadata:
    `{source, title, author, chapter_number, chapter_title}`
 4. Chunked using SentenceSplitter (512 tokens, 50 overlap) — chunks inherit chapter metadata
 5. Embedded with OpenAI text-embedding-3-small
 6. Stored in ChromaDB with chapter metadata filterable
-7. Retrieved via LlamaIndex QueryEngine (similarity_top_k=5)
-8. `query_literary_knowledge` is a @function_tool the LLM calls when literary questions arise
-9. Responses include chapter-level source attribution
+7. **Hybrid retrieval**: Literary questions get RAG context injected via `on_user_turn_completed`
+   hook (fast, no tool-call round-trip) + `query_literary_knowledge` tool as fallback for
+   explicit deep queries
+8. Responses include chapter-level source attribution
 
 ## Tools
 | Tool | Description |
@@ -50,7 +51,7 @@ Frontend (Vercel) → FastAPI (EC2) → /token (JWT generation)
 - OpenAI gpt-5.4-mini (LLM)
 - Deepgram (STT)
 - OpenAI (TTS)
-- Silero (VAD) + LiveKit Turn Detector
+- Silero (VAD) + LiveKit Multilingual Turn Detector
 - LlamaIndex (RAG framework)
 - ChromaDB (vector store)
 - PyMuPDF (PDF chapter extraction)

@@ -13,13 +13,14 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from tools.books import search_books_api, fetch_reviews_api
+from tools.goodreads import search_and_get_reviews
 from tools.shelves import ShelfStore
-from rag.query import query_literary_knowledge
+from rag.query import query_literary_knowledge, query_course_notes
 
 load_dotenv()
 
 MODEL = "gpt-5.4-mini"
-_cli_shelf_store = ShelfStore()
+_cli_shelf_store = ShelfStore("cli-session")
 
 _config_path = Path(__file__).parent / "agent" / "agent_config.yaml"
 with open(_config_path) as f:
@@ -74,24 +75,6 @@ async def handle_search_books(query: str) -> str:
     return "Found: " + "; ".join(books)
 
 
-async def handle_fetch_book_reviews(title: str, author: str) -> str:
-    data = await fetch_reviews_api(title, author)
-    if data.get("error"):
-        return f"Couldn't find details for '{title}' by {author}."
-    rating_str = (
-        f"{data['averageRating']}/5 ({data['ratingsCount']} ratings)"
-        if data.get("averageRating")
-        else "no ratings yet"
-    )
-    desc = data.get("description", "No description available.")
-    if len(desc) > 300:
-        desc = desc[:300] + "..."
-    return (
-        f"'{data['title']}' by {', '.join(data.get('authors', []))}. "
-        f"Rating: {rating_str}. {desc}"
-    )
-
-
 async def handle_add_to_shelf(title: str, author: str, shelf_name: str) -> str:
     book_data = await fetch_reviews_api(title, author)
     cover_url = book_data.get("coverUrl", "")
@@ -123,13 +106,52 @@ async def handle_query_literary_knowledge(question: str) -> str:
     return await query_literary_knowledge(question)
 
 
+async def handle_query_course_notes(question: str) -> str:
+    return await query_course_notes(question)
+
+
+async def handle_fetch_goodreads_reviews(title: str, author: str) -> str:
+    data = await search_and_get_reviews(title, author)
+    if data.get("error"):
+        return f"Couldn't get Goodreads reviews: {data['error']}"
+    result = f"Goodreads: '{data.get('title')}' — {data.get('rating')}/5 ({data.get('ratings')} ratings)"
+    genres = data.get("genres", [])
+    if genres:
+        result += f". Genres: {', '.join(genres[:3])}"
+    reviews = data.get("reviews", [])
+    if reviews:
+        result += ". Top reviews: "
+        snippets = []
+        for r in reviews[:3]:
+            snippets.append(f"{r['user']} ({r['rating']}/5): {r['text']}")
+        result += " | ".join(snippets)
+    return result
+
+
+async def handle_rename_shelf(old_name: str, new_name: str) -> str:
+    success = _cli_shelf_store.rename_shelf(old_name, new_name)
+    if not success:
+        return f"Couldn't rename — either '{old_name}' doesn't exist or '{new_name}' is already taken."
+    return f"Renamed shelf '{old_name}' to '{new_name}'."
+
+
+async def handle_remove_from_shelf(title: str, shelf_name: str) -> str:
+    success = _cli_shelf_store.remove_book(shelf_name, title)
+    if not success:
+        return f"Couldn't find '{title}' on the '{shelf_name}' shelf."
+    return f"Removed '{title}' from the '{shelf_name}' shelf."
+
+
 TOOL_HANDLERS = {
     "search_books": handle_search_books,
-    "fetch_book_reviews": handle_fetch_book_reviews,
     "add_to_shelf": handle_add_to_shelf,
     "get_shelf": handle_get_shelf,
     "list_shelves": handle_list_shelves,
     "query_literary_knowledge": handle_query_literary_knowledge,
+    "query_course_notes": handle_query_course_notes,
+    "fetch_goodreads_reviews": handle_fetch_goodreads_reviews,
+    "rename_shelf": handle_rename_shelf,
+    "remove_from_shelf": handle_remove_from_shelf,
 }
 
 

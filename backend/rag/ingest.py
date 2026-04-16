@@ -109,5 +109,67 @@ def ingest():
     return index
 
 
+COURSE_PDF = "bildungsroman_notes.pdf"
+COURSE_COLLECTION = "bildungsroman_notes"
+
+
+def ingest_course_notes():
+    Settings.embed_model = OpenAIEmbedding(
+        model="text-embedding-3-small",
+        api_key=os.getenv("OPENAI_API_KEY"),
+    )
+
+    pdf_path = os.path.join(DATA_PATH, COURSE_PDF)
+    if not os.path.exists(pdf_path):
+        print(f"\nWARNING: {pdf_path} not found, skipping course notes ingestion")
+        return None
+
+    chapters = extract_chapters(pdf_path, "bildungsroman_notes")
+    print(f"\nBildungsroman Course Notes: found {len(chapters)} sections")
+
+    documents = []
+    for ch in chapters:
+        print(
+            f"  Section {ch.number}: '{ch.title}' "
+            f"(pages {ch.start_page}-{ch.end_page}, {len(ch.text)} chars)"
+        )
+        doc = Document(
+            text=ch.text,
+            metadata={
+                "source": "bildungsroman_notes",
+                "title": "Bildungsroman Course Notes",
+                "author": "Lecture Notes",
+                "chapter_number": ch.number,
+                "chapter_title": ch.title,
+                "start_page": ch.start_page,
+                "end_page": ch.end_page,
+            },
+            metadata_separator="\n",
+            metadata_template="{key}: {value}",
+            text_template="Source: {metadata_str}\n\n{content}",
+        )
+        documents.append(doc)
+
+    splitter = SentenceSplitter(chunk_size=512, chunk_overlap=50)
+    nodes = splitter.get_nodes_from_documents(documents)
+    print(f"Course notes chunks: {len(nodes)}")
+
+    chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+    try:
+        chroma_client.delete_collection(COURSE_COLLECTION)
+    except Exception:
+        pass
+    chroma_collection = chroma_client.get_or_create_collection(COURSE_COLLECTION)
+
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+    index = VectorStoreIndex(nodes, storage_context=storage_context, show_progress=True)
+
+    print(f"Course notes ingestion complete ({COURSE_COLLECTION} collection)")
+    return index
+
+
 if __name__ == "__main__":
     ingest()
+    ingest_course_notes()
