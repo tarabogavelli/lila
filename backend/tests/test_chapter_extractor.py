@@ -1,6 +1,13 @@
 from unittest.mock import patch
 
-from rag.chapter_extractor import extract_chapters, Chapter
+from rag.chapter_extractor import (
+    extract_chapters,
+    Chapter,
+    _extract_conversations_with_friends,
+    _extract_heart_the_lover,
+    _extract_bildungsroman_notes,
+    _STRATEGIES,
+)
 
 
 class TestChapterDataclass:
@@ -154,3 +161,194 @@ class TestExtractChaptersEdgeCases:
 
         assert len(chapters) == 1
         assert chapters[0].title == "empty"
+
+
+class TestStrategyDispatch:
+    def test_conversations_dispatched(self):
+        assert (
+            _STRATEGIES["conversations_with_friends"]
+            is _extract_conversations_with_friends
+        )
+
+    def test_heart_the_lover_dispatched(self):
+        assert _STRATEGIES["heart_the_lover"] is _extract_heart_the_lover
+
+    def test_bildungsroman_dispatched(self):
+        assert _STRATEGIES["bildungsroman_notes"] is _extract_bildungsroman_notes
+
+    def test_unknown_source_uses_default(self, mock_fitz_doc):
+        pages = [(0, "Chapter 1: Intro\nBody text.")]
+        doc = mock_fitz_doc(pages)
+        with patch("rag.chapter_extractor.fitz.open", return_value=doc):
+            chapters = extract_chapters("/fake.pdf", "some_unknown_book")
+        assert len(chapters) == 1
+        assert "Intro" in chapters[0].title
+
+
+class TestConversationsStrategy:
+    def test_skips_front_matter(self):
+        pages = [
+            (0, ""),
+            (1, ""),
+            (2, ""),
+            (3, ""),
+            (4, "SALLY ROONEY\nConversations with Friends"),
+            (5, "In times of crisis..."),
+            (6, "Contents\nTitle Page\n1\n2\n3"),
+            (7, "20\n21\nAcknowledgements"),
+            (8, "PART ONE"),
+            (9, "1\nBobbi and I first met Melissa at a poetry night."),
+            (10, "More chapter 1 text continuing."),
+            (11, "2\nIt rained all day before we went for dinner."),
+        ]
+        chapters = _extract_conversations_with_friends(
+            pages, "conversations_with_friends"
+        )
+        assert chapters[0].number == 1
+        assert chapters[0].title == "Chapter 1"
+        assert chapters[0].start_page == 9
+
+    def test_skips_part_dividers(self):
+        pages = [(i, "") for i in range(8)]
+        pages += [
+            (8, "PART ONE"),
+            (9, "1\nChapter one text here."),
+            (10, "PART TWO"),
+            (11, "2\nChapter two text here."),
+            (12, "Copyright 2017."),
+        ]
+        chapters = _extract_conversations_with_friends(
+            pages, "conversations_with_friends"
+        )
+        assert len(chapters) == 2
+        assert chapters[0].number == 1
+        assert chapters[1].number == 2
+
+    def test_skips_copyright_last_page(self):
+        pages = [(i, "") for i in range(8)]
+        pages += [
+            (8, "PART ONE"),
+            (9, "1\nFirst chapter text."),
+            (10, "Copyright 2017 by Faber.\nAll rights reserved."),
+        ]
+        chapters = _extract_conversations_with_friends(
+            pages, "conversations_with_friends"
+        )
+        assert len(chapters) == 1
+        assert chapters[0].number == 1
+
+    def test_correct_chapter_count(self):
+        pages = [(i, "") for i in range(9)]
+        for ch in range(1, 32):
+            pages.append((8 + ch, f"{ch}\nText for chapter {ch}."))
+        pages.append((40, "Copyright page."))
+        chapters = _extract_conversations_with_friends(
+            pages, "conversations_with_friends"
+        )
+        assert len(chapters) == 31
+        assert chapters[0].number == 1
+        assert chapters[-1].number == 31
+
+
+class TestHeartTheLoverStrategy:
+    def test_detects_three_parts(self):
+        pages = [(i, "") for i in range(10)]
+        pages[5] = (5, "Title page text with lots of content " * 5)
+        pages += [
+            (10, "I"),
+            (11, "Content of part one. " * 20),
+            (12, "More part one. " * 20),
+            (97, "End of part one. " * 20),
+            (98, "II"),
+            (99, "Content of part two. " * 20),
+            (117, "End of part two. " * 20),
+            (118, "III"),
+            (119, "Content of part three. " * 20),
+            (180, "End of part three. " * 20),
+            (181, "OceanofPDF.com"),
+        ]
+        chapters = _extract_heart_the_lover(pages, "heart_the_lover")
+        assert len(chapters) == 3
+        assert chapters[0].title == "Part I"
+        assert chapters[0].start_page == 11
+        assert chapters[1].title == "Part II"
+        assert chapters[1].start_page == 99
+        assert chapters[2].title == "Part III"
+        assert chapters[2].start_page == 119
+        assert chapters[2].end_page == 180
+
+    def test_skips_front_matter(self):
+        pages = [
+            (0, ""),
+            (1, ""),
+            (2, "Heart\nthe\nLover"),
+            (3, ""),
+            (10, "I"),
+            (11, "Content starts here. " * 20),
+        ]
+        chapters = _extract_heart_the_lover(pages, "heart_the_lover")
+        assert len(chapters) == 1
+        assert chapters[0].start_page == 11
+
+    def test_fallback_when_no_numerals(self):
+        pages = [
+            (0, "Some regular text that is long enough. " * 5),
+            (1, "More regular text. " * 5),
+        ]
+        chapters = _extract_heart_the_lover(pages, "heart_the_lover")
+        assert len(chapters) == 1
+        assert chapters[0].title == "heart_the_lover"
+
+
+class TestBildungsromanStrategy:
+    def test_intro_section_created(self):
+        pages = [
+            (0, "Bildungsroman Lecture Notes\nGeneral intro text."),
+            (1, "More intro material."),
+            (2, "Book 7: The Woman Warrior\nSome text."),
+        ]
+        chapters = _extract_bildungsroman_notes(pages, "bildungsroman_notes")
+        assert chapters[0].title == "Introduction"
+        assert "General intro text" in chapters[0].text
+
+    def test_subsections_split_on_same_page(self):
+        pages = [
+            (
+                0,
+                "Book 5: Sula\n[Book 5] 5.1 Toni Morrison\nBio text.\n[Book 5] 5.2 Why Sula?\nReason text.",
+            ),
+        ]
+        chapters = _extract_bildungsroman_notes(pages, "bildungsroman_notes")
+        titles = [ch.title for ch in chapters]
+        assert any("5.1 Toni Morrison" in t for t in titles)
+        assert any("5.2 Why Sula?" in t for t in titles)
+        toni_ch = [ch for ch in chapters if "5.1" in ch.title][0]
+        assert "Bio text" in toni_ch.text
+        assert "Reason text" not in toni_ch.text
+
+    def test_book_title_in_metadata(self):
+        pages = [
+            (
+                0,
+                "Book 3: The Metamorphosis\nIntro.\n[Book 3] 3.1 Overview\nOverview text.",
+            ),
+        ]
+        chapters = _extract_bildungsroman_notes(pages, "bildungsroman_notes")
+        sub = [ch for ch in chapters if "3.1" in ch.title][0]
+        assert "The Metamorphosis" in sub.title
+
+    def test_book_without_subsections(self):
+        pages = [
+            (0, "Book 1: Père Goriot\nBalzac sees capitalism as zero sum game."),
+        ]
+        chapters = _extract_bildungsroman_notes(pages, "bildungsroman_notes")
+        assert any("Père Goriot" in ch.title for ch in chapters)
+
+    def test_fallback_when_no_tags(self):
+        pages = [
+            (0, "Just regular notes without any tags."),
+            (1, "More untagged content."),
+        ]
+        chapters = _extract_bildungsroman_notes(pages, "bildungsroman_notes")
+        assert len(chapters) == 1
+        assert chapters[0].title == "Introduction"
