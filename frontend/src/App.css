@@ -274,7 +274,7 @@ body {
   color: var(--text-primary);
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid var(--shelf-bg);
+  border-bottom: 2px solid var(--accent);
   font-style: italic;
 }
 
