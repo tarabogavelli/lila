@@ -1,84 +1,176 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
-from rag.query import query_literary_knowledge
+
+from rag.query import (
+    query_literary_knowledge,
+    query_course_notes,
+    _build_filters,
+    _format_chunks,
+)
+
+
+def _make_node(text, metadata=None):
+    node = MagicMock()
+    node.text = text
+    node.metadata = metadata or {}
+    return node
+
+
+class TestBuildFilters:
+    def test_literary_book_match(self):
+        filters = _build_filters(
+            "What happens in Conversations with Friends?", "lila_library"
+        )
+        assert filters is not None
+        assert len(filters.filters) == 1
+        assert filters.filters[0].key == "source"
+        assert filters.filters[0].value == "conversations_with_friends"
+
+    def test_literary_author_match(self):
+        filters = _build_filters(
+            "Tell me about Lily King's writing style", "lila_library"
+        )
+        assert filters is not None
+        assert filters.filters[0].value == "heart_the_lover"
+
+    def test_course_book_match(self):
+        filters = _build_filters("What did we learn about Sula?", "bildungsroman_notes")
+        assert filters is not None
+        assert filters.filters[0].key == "book_title"
+        assert filters.filters[0].value == "Sula"
+
+    def test_chapter_number_match(self):
+        filters = _build_filters(
+            "What happens in chapter 5 of Conversations with Friends?", "lila_library"
+        )
+        assert filters is not None
+        assert len(filters.filters) == 2
+        source_filter = [f for f in filters.filters if f.key == "source"][0]
+        ch_filter = [f for f in filters.filters if f.key == "chapter_number"][0]
+        assert source_filter.value == "conversations_with_friends"
+        assert ch_filter.value == 5
+
+    def test_no_match_returns_none(self):
+        filters = _build_filters("What is the meaning of life?", "lila_library")
+        assert filters is None
+
+    def test_unknown_collection_returns_none(self):
+        filters = _build_filters("anything", "unknown_collection")
+        assert filters is None
+
+
+class TestFormatChunks:
+    def test_formats_with_metadata(self):
+        nodes = [
+            _make_node(
+                "Some literary text.",
+                {
+                    "title": "Conversations with Friends",
+                    "chapter_number": 3,
+                    "chapter_title": "Chapter 3",
+                },
+            )
+        ]
+        result = _format_chunks(nodes)
+        assert "[Conversations with Friends, Chapter 3 ('Chapter 3')]" in result
+        assert "Some literary text." in result
+
+    def test_multiple_chunks_separated(self):
+        nodes = [
+            _make_node("First chunk.", {"title": "Book A", "chapter_number": 1}),
+            _make_node("Second chunk.", {"title": "Book B", "chapter_number": 2}),
+        ]
+        result = _format_chunks(nodes)
+        assert "---" in result
+        assert "First chunk." in result
+        assert "Second chunk." in result
+
+    def test_empty_nodes(self):
+        result = _format_chunks([])
+        assert result == "No relevant passages found."
+
+    def test_missing_metadata(self):
+        nodes = [_make_node("Text.", {})]
+        result = _format_chunks(nodes)
+        assert "Unknown, Chapter ?" in result
 
 
 class TestQueryLiteraryKnowledge:
-    async def test_formats_response_with_sources(self, mock_query_response):
-        response = mock_query_response(
-            "Free indirect style blends narrator and character voice.",
-            [
+    async def test_returns_formatted_chunks(self):
+        nodes = [
+            _make_node(
+                "Bobbi and I first met Melissa.",
                 {
-                    "title": "How Fiction Works",
+                    "title": "Conversations with Friends",
                     "chapter_number": 1,
-                    "chapter_title": "Narrating",
+                    "chapter_title": "Chapter 1",
                 },
+            )
+        ]
+        mock_retriever = MagicMock()
+        mock_retriever.aretrieve = AsyncMock(return_value=nodes)
+
+        mock_reranker = MagicMock()
+        mock_reranker.postprocess_nodes.return_value = nodes
+
+        mock_index = MagicMock()
+        mock_index.as_retriever.return_value = mock_retriever
+
+        with (
+            patch("rag.query._get_index", return_value=mock_index),
+            patch("rag.query._get_reranker", return_value=mock_reranker),
+        ):
+            result = await query_literary_knowledge("Who is Melissa?")
+
+        assert "Conversations with Friends" in result
+        assert "Bobbi and I first met Melissa" in result
+        mock_reranker.postprocess_nodes.assert_called_once()
+
+    async def test_no_results(self):
+        mock_retriever = MagicMock()
+        mock_retriever.aretrieve = AsyncMock(return_value=[])
+
+        mock_reranker = MagicMock()
+        mock_reranker.postprocess_nodes.return_value = []
+
+        mock_index = MagicMock()
+        mock_index.as_retriever.return_value = mock_retriever
+
+        with (
+            patch("rag.query._get_index", return_value=mock_index),
+            patch("rag.query._get_reranker", return_value=mock_reranker),
+        ):
+            result = await query_literary_knowledge("Something obscure?")
+
+        assert result == "No relevant passages found."
+
+
+class TestQueryCourseNotes:
+    async def test_returns_formatted_chunks(self):
+        nodes = [
+            _make_node(
+                "Sula represents nihilist bildung.",
                 {
-                    "title": "How Fiction Works",
-                    "chapter_number": 3,
-                    "chapter_title": "Flaubert and Modern Narrative",
+                    "title": "Bildungsroman Course Notes",
+                    "chapter_number": 23,
+                    "chapter_title": "Sula — 5.1 Toni Morrison",
                 },
-            ],
-        )
-        mock_engine = MagicMock()
-        mock_engine.aquery.return_value = response
+            )
+        ]
+        mock_retriever = MagicMock()
+        mock_retriever.aretrieve = AsyncMock(return_value=nodes)
 
-        with patch("rag.query.get_query_engine", return_value=mock_engine):
-            result = await query_literary_knowledge("What is free indirect style?")
+        mock_reranker = MagicMock()
+        mock_reranker.postprocess_nodes.return_value = nodes
 
-        assert "Free indirect style" in result
-        assert "[Sources:" in result
-        assert "How Fiction Works, Chapter 1 ('Narrating')" in result
-        assert (
-            "How Fiction Works, Chapter 3 ('Flaubert and Modern Narrative')" in result
-        )
+        mock_index = MagicMock()
+        mock_index.as_retriever.return_value = mock_retriever
 
-    async def test_no_sources_fallback(self, mock_query_response):
-        response = mock_query_response("Some answer.", [])
-        mock_engine = MagicMock()
-        mock_engine.aquery.return_value = response
+        with (
+            patch("rag.query._get_course_index", return_value=mock_index),
+            patch("rag.query._get_reranker", return_value=mock_reranker),
+        ):
+            result = await query_course_notes("What did we discuss about Sula?")
 
-        with patch("rag.query.get_query_engine", return_value=mock_engine):
-            result = await query_literary_knowledge("question")
-
-        assert "[Sources: my reading]" in result
-
-    async def test_deduplicates_sources(self, mock_query_response):
-        same_meta = {
-            "title": "How Fiction Works",
-            "chapter_number": 1,
-            "chapter_title": "Narrating",
-        }
-        response = mock_query_response("Answer.", [same_meta, same_meta])
-        mock_engine = MagicMock()
-        mock_engine.aquery.return_value = response
-
-        with patch("rag.query.get_query_engine", return_value=mock_engine):
-            result = await query_literary_knowledge("question")
-
-        sources_section = result.split("[Sources: ")[1].rstrip("]")
-        assert sources_section.count("Chapter 1") == 1
-
-    async def test_missing_chapter_title(self, mock_query_response):
-        response = mock_query_response(
-            "Answer.",
-            [{"title": "Frantumaglia", "chapter_number": 5, "chapter_title": ""}],
-        )
-        mock_engine = MagicMock()
-        mock_engine.aquery.return_value = response
-
-        with patch("rag.query.get_query_engine", return_value=mock_engine):
-            result = await query_literary_knowledge("question")
-
-        assert "Frantumaglia, Chapter 5" in result
-        assert "('" not in result.split("[Sources:")[1]
-
-    async def test_missing_metadata_fields(self, mock_query_response):
-        response = mock_query_response("Answer.", [{}])
-        mock_engine = MagicMock()
-        mock_engine.aquery.return_value = response
-
-        with patch("rag.query.get_query_engine", return_value=mock_engine):
-            result = await query_literary_knowledge("question")
-
-        assert "Unknown, Chapter ?" in result
+        assert "Sula represents nihilist bildung" in result
+        assert "Bildungsroman Course Notes" in result
