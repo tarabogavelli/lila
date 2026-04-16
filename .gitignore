@@ -8,9 +8,8 @@ venv/
 # Environment
 .env
 
-# RAG data (PDFs added manually, vector store generated)
+# RAG data (PDFs added manually)
 backend/data/*.pdf
-backend/rag/chroma_store/
 
 # session data
 backend/data/sessions
