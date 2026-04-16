@@ -3,6 +3,7 @@
 Lila is a voice agent that feels like calling a well-read friend. She's 23, an opinionated English major who has read everything — and she knows *your* reading history, your moods, and what you're likely to love next.
 
 She and the user took a class together in college: **Bildungsroman: The Coming-of-Age Novel**. Lila has a perfect memory of those lecture notes, so you can talk through the books, themes, and the professor's analysis — and use that lens to think about what to read next.
+She can look up goodreads reviews, give you recommendations, recall tons of details from the Bildungsroman class, and help you organize your virtual bookshelves.
 
 ## System Architecture
 
@@ -176,3 +177,6 @@ bash /home/ec2-user/lila/deploy/deploy.sh   # Restart after code changes
 ## AI Tools Used
 
 - Claude Code (Anthropic) — planning and code generation
+
+## Design Assumptions and Limitations
+For details on Lila's design rationale, known limitations, and architectural tradeoffs, consult design_decisions_assumptions.md.
