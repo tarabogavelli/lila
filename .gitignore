@@ -17,6 +17,7 @@ backend/data/sessions
 
 # Shelf data (auto-generated at runtime)
 backend/data/shelves.json
+backend/data/shelves/
 
 # Node
 node_modules/

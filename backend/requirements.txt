@@ -4,6 +4,7 @@ livekit-plugins-deepgram~=1.5
 livekit-plugins-elevenlabs~=1.5
 livekit-plugins-silero~=1.5
 livekit-plugins-turn-detector~=1.5
+livekit-plugins-noise-cancellation~=0.2
 livekit-api~=1.1
 llama-index-core
 llama-index-vector-stores-chroma
