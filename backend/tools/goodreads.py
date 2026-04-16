@@ -89,12 +89,14 @@ async def fetch_goodreads_reviews(book_id: int, retries: int = 2) -> dict:
         body = r.get("body", "")
         if len(body) > 400:
             body = body[:400] + "..."
-        top_reviews.append({
-            "user": r.get("user", {}).get("name", "Anonymous"),
-            "rating": r.get("rating"),
-            "likes": r.get("likes", 0),
-            "text": body,
-        })
+        top_reviews.append(
+            {
+                "user": r.get("user", {}).get("name", "Anonymous"),
+                "rating": r.get("rating"),
+                "likes": r.get("likes", 0),
+                "text": body,
+            }
+        )
 
     return {
         "title": data.get("title"),
