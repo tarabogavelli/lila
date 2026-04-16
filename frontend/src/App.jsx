@@ -4,11 +4,37 @@ import {
   RoomAudioRenderer,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import AgentView from "./components/AgentView";
+import useAgentView from "./components/AgentView";
 import BookshelfPanel from "./components/BookshelfPanel";
+import ShelfSync from "./components/ShelfSync";
 import "./App.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+function CallView({ shelves, pollShelves, onEndCall }) {
+  const { visualizer, transcript } = useAgentView();
+  const hasShelves = Object.keys(shelves).length > 0;
+
+  return (
+    <>
+      <RoomAudioRenderer />
+      <ShelfSync onShelfUpdated={pollShelves} />
+      <div className="call-layout">
+        {visualizer}
+        <div className={`call-content ${hasShelves ? "with-shelves" : ""}`}>
+          <div className="conversation-panel">
+            {transcript && <h2 className="panel-title">Conversation</h2>}
+            {transcript}
+          </div>
+          {hasShelves && <BookshelfPanel shelves={shelves} />}
+        </div>
+        <button onClick={onEndCall} className="end-btn">
+          End Call
+        </button>
+      </div>
+    </>
+  );
+}
 
 export default function App() {
   const [token, setToken] = useState(null);
@@ -17,23 +43,24 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [shelves, setShelves] = useState({});
 
+  const pollShelves = useCallback(async () => {
+    if (!roomName) return;
+    try {
+      const res = await fetch(`${API_BASE}/shelves?room=${roomName}`);
+      const data = await res.json();
+      setShelves(data);
+    } catch (err) {
+      console.error("Failed to fetch shelves:", err);
+    }
+  }, [roomName]);
+
   useEffect(() => {
     if (!isConnected || !roomName) return;
 
-    const poll = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/shelves?room=${roomName}`);
-        const data = await res.json();
-        setShelves(data);
-      } catch (err) {
-        console.error("Failed to fetch shelves:", err);
-      }
-    };
-
-    poll();
-    const interval = setInterval(poll, 3000);
+    pollShelves();
+    const interval = setInterval(pollShelves, 3000);
     return () => clearInterval(interval);
-  }, [isConnected, roomName]);
+  }, [isConnected, roomName, pollShelves]);
 
   const startCall = useCallback(async () => {
     try {
@@ -58,16 +85,12 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1 className="app-title">Lila</h1>
-        <p className="app-subtitle">your personal librarian</p>
-      </header>
-
       <main className="app-main">
         {!isConnected ? (
           <div className="start-screen">
+            <h1 className="app-title">Lila</h1>
             <p className="start-tagline">
-              She's read everything. She has opinions.
+              she's read everything.
             </p>
             <button onClick={startCall} className="start-btn">
               Call Lila
@@ -82,18 +105,11 @@ export default function App() {
             video={false}
             onDisconnected={endCall}
           >
-            <RoomAudioRenderer />
-            <div className="call-layout">
-              <div className="left-panel">
-                <AgentView />
-                <button onClick={endCall} className="end-btn">
-                  End Call
-                </button>
-              </div>
-              <div className="right-panel">
-                <BookshelfPanel shelves={shelves} />
-              </div>
-            </div>
+            <CallView
+              shelves={shelves}
+              pollShelves={pollShelves}
+              onEndCall={endCall}
+            />
           </LiveKitRoom>
         )}
       </main>

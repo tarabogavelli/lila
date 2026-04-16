@@ -4,16 +4,12 @@ export default function BookshelfPanel({ shelves }) {
   const shelfNames = Object.keys(shelves);
 
   if (shelfNames.length === 0) {
-    return (
-      <div className="bookshelves-empty">
-        <p>Your shelves will appear here as Lila curates books for you.</p>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="bookshelves">
-      <h2 className="shelves-title">Your Shelves</h2>
+      <h2 className="shelves-title">Shelves</h2>
       {shelfNames.map((name) => (
         <div key={name} className="shelf">
           <h3 className="shelf-name">{name}</h3>

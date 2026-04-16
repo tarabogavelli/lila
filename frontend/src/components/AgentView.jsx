@@ -3,14 +3,52 @@ import {
   BarVisualizer,
   useLocalParticipant,
   useTrackTranscription,
+  useRoomContext,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
-import { useEffect, useRef } from "react";
+import { Track, RoomEvent } from "livekit-client";
+import { useEffect, useRef, useState, useCallback } from "react";
+import ToolCallChip from "./ToolCallChip";
 
-export default function AgentView() {
+export default function useAgentView() {
   const { state, audioTrack, agentTranscriptions } = useVoiceAssistant();
   const localParticipant = useLocalParticipant();
   const bottomRef = useRef(null);
+  const room = useRoomContext();
+  const [toolEvents, setToolEvents] = useState([]);
+  const segmentsRef = useRef([]);
+
+  const onDataReceived = useCallback(
+    (payload, _participant, _kind, topic) => {
+      if (topic !== "tool_status") return;
+      try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        if (data.type === "tool_start") {
+          const latest = segmentsRef.current;
+          const lastTime = latest.length > 0
+            ? Math.max(...latest.map((s) => s.firstReceivedTime ?? 0))
+            : 0;
+          const toolTime = Math.max(Date.now() / 1000, lastTime + 0.001);
+          setToolEvents((prev) => [
+            ...prev,
+            {
+              type: "tool",
+              name: data.name,
+              id: `tool-${Date.now()}-${Math.random()}`,
+              firstReceivedTime: toolTime,
+            },
+          ]);
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    room.on(RoomEvent.DataReceived, onDataReceived);
+    return () => room.off(RoomEvent.DataReceived, onDataReceived);
+  }, [room, onDataReceived]);
 
   const localTrackRef = {
     publication: localParticipant.microphoneTrack,
@@ -19,18 +57,23 @@ export default function AgentView() {
   };
   const { segments: userSegments } = useTrackTranscription(localTrackRef);
 
-  const allSegments = [
+  const speechSegments = [
     ...(agentTranscriptions || []).map((s) => ({
       ...s,
       speaker: "Lila",
-      isAgent: true,
+      type: "agent",
     })),
     ...(userSegments || []).map((s) => ({
       ...s,
       speaker: "You",
-      isAgent: false,
+      type: "user",
     })),
-  ].sort((a, b) => (a.firstReceivedTime ?? 0) - (b.firstReceivedTime ?? 0));
+  ];
+  segmentsRef.current = speechSegments;
+
+  const allSegments = [...speechSegments, ...toolEvents].sort(
+    (a, b) => (a.firstReceivedTime ?? 0) - (b.firstReceivedTime ?? 0),
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -43,33 +86,39 @@ export default function AgentView() {
     speaking: "Speaking",
   };
 
-  return (
-    <div className="agent-view">
+  return {
+    visualizer: (
       <div className="visualizer-container">
         <BarVisualizer
           state={state}
           trackRef={audioTrack}
-          barCount={7}
-          style={{ height: "100px" }}
+          barCount={5}
+          style={{ height: "60px" }}
         />
         <p className="agent-state">{stateLabel[state] || state}</p>
       </div>
-
+    ),
+    transcript: allSegments.length > 0 ? (
       <div className="transcript-panel">
-        <h3 className="transcript-title">Conversation</h3>
         <div className="transcript-messages">
-          {allSegments.map((seg, i) => (
-            <div
-              key={seg.id || i}
-              className={`transcript-line ${seg.isAgent ? "agent" : "user"}`}
-            >
-              <span className="speaker">{seg.speaker}</span>
-              <span className="text">{seg.text}</span>
-            </div>
-          ))}
+          {allSegments.map((seg, i) =>
+            seg.type === "tool" ? (
+              <div key={seg.id || i} className="transcript-line tool">
+                <ToolCallChip name={seg.name} />
+              </div>
+            ) : (
+              <div
+                key={seg.id || i}
+                className={`transcript-line ${seg.type}`}
+              >
+                <span className="speaker">{seg.speaker}</span>
+                <span className="text">{seg.text}</span>
+              </div>
+            ),
+          )}
           <div ref={bottomRef} />
         </div>
       </div>
-    </div>
-  );
+    ) : null,
+  };
 }
