@@ -168,14 +168,12 @@ class TestListShelves:
 
 class TestQueryLiteraryKnowledge:
     async def test_passthrough(self, lila):
-        expected = "Free indirect style is a technique...\n\n[Sources: How Fiction Works, Chapter 1]"
+        expected = "[Conversations with Friends, Chapter 1 ('Chapter 1')]\nBobbi and I first met Melissa."
         with patch(
             "agent.agent.query_literary_knowledge",
             new_callable=AsyncMock,
             return_value=expected,
         ):
-            result = await lila.query_literary_knowledge_tool(
-                "What is free indirect style?"
-            )
+            result = await lila.query_literary_knowledge_tool("Who is Melissa?")
 
         assert result == expected

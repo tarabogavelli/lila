@@ -3,6 +3,7 @@ from unittest.mock import patch
 from rag.chapter_extractor import (
     extract_chapters,
     Chapter,
+    _clean_text,
     _extract_conversations_with_friends,
     _extract_heart_the_lover,
     _extract_bildungsroman_notes,
@@ -352,3 +353,53 @@ class TestBildungsromanStrategy:
         chapters = _extract_bildungsroman_notes(pages, "bildungsroman_notes")
         assert len(chapters) == 1
         assert chapters[0].title == "Introduction"
+
+
+class TestCleanText:
+    def test_joins_mid_paragraph_line_break(self):
+        text = "the quick brown\nfox jumped over"
+        assert _clean_text(text) == "the quick brown fox jumped over"
+
+    def test_preserves_paragraph_boundary_after_period(self):
+        text = "end of sentence.\nNew paragraph starts here."
+        assert _clean_text(text) == "end of sentence.\n\nNew paragraph starts here."
+
+    def test_preserves_paragraph_boundary_after_question_mark(self):
+        text = "really?\nYes indeed."
+        assert _clean_text(text) == "really?\n\nYes indeed."
+
+    def test_preserves_existing_double_newline(self):
+        text = "paragraph one.\n\nParagraph two."
+        assert _clean_text(text) == text
+
+    def test_preserves_colon_boundary(self):
+        text = "the following:\nfirst item"
+        assert _clean_text(text) == "the following:\n\nfirst item"
+
+    def test_joins_multiple_consecutive_wraps(self):
+        text = "this is a very long\nsentence that wraps\nacross three lines."
+        assert (
+            _clean_text(text)
+            == "this is a very long sentence that wraps across three lines."
+        )
+
+    def test_preserves_dialogue(self):
+        text = "she said.\nI know, he replied."
+        assert _clean_text(text) == "she said.\n\nI know, he replied."
+
+    def test_handles_empty_string(self):
+        assert _clean_text("") == ""
+
+    def test_handles_single_line(self):
+        assert _clean_text("just one line") == "just one line"
+
+    def test_joins_across_page_boundary(self):
+        text = "like I did with many other\n\n\npeople, that while I was talking"
+        assert (
+            _clean_text(text)
+            == "like I did with many other people, that while I was talking"
+        )
+
+    def test_preserves_real_paragraph_across_page_boundary(self):
+        text = "end of chapter.\n\n\nNew chapter begins here."
+        assert _clean_text(text) == "end of chapter.\n\nNew chapter begins here."

@@ -11,6 +11,7 @@ llama-index-vector-stores-chroma
 llama-index-embeddings-openai
 llama-index-llms-openai
 llama-index-readers-file
+llama-index-postprocessor-cohere-rerank
 chromadb
 fastapi
 uvicorn[standard]

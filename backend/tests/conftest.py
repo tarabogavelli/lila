@@ -100,25 +100,11 @@ def mock_fitz_doc():
     return _factory
 
 
-@pytest.fixture
-def mock_query_response():
-    def _factory(response_text, source_metas=None):
-        response = MagicMock()
-        response.response = response_text
-        response.source_nodes = []
-        for meta in source_metas or []:
-            node = MagicMock()
-            node.metadata = meta
-            response.source_nodes.append(node)
-        return response
-
-    return _factory
-
-
 @pytest.fixture(autouse=True)
 def reset_query_engine():
     yield
     import rag.query as qmod
 
-    qmod._query_engine = None
     qmod._index = None
+    qmod._course_index = None
+    qmod._reranker = None
