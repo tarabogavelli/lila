@@ -3,7 +3,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import time
 import yaml
 from dotenv import load_dotenv
 
@@ -19,8 +18,7 @@ from livekit.agents.llm import function_tool
 from livekit.plugins import deepgram, elevenlabs, openai, silero, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-from tools.books import search_books_api, fetch_reviews_api
-from tools.goodreads import search_and_get_reviews
+import tool_handlers as th
 from tools.shelves import get_store, remove_store
 from rag.query import (
     query_literary_knowledge,
@@ -68,51 +66,26 @@ class Lila(Agent):
     @function_tool(description=_tool_descriptions["search_books"])
     async def search_books(self, query: str) -> str:
         await self._notify_tool_start("search_books")
-        results = await search_books_api(query)
-        if not results.get("items"):
-            return "I couldn't find anything matching that. Could you be more specific?"
-
-        books = []
-        for item in results["items"][:3]:
-            info = item.get("volumeInfo", {})
-            title = info.get("title", "Unknown")
-            authors = ", ".join(info.get("authors", ["Unknown"]))
-            rating = info.get("averageRating", "no rating")
-            books.append(f"'{title}' by {authors} (rating: {rating})")
-
-        return "Found: " + "; ".join(books)
+        return await th.search_books(query)
 
     @function_tool(description=_tool_descriptions["add_to_shelf"])
     async def add_to_shelf(self, title: str, author: str, shelf_name: str) -> str:
         await self._notify_tool_start("add_to_shelf")
-        book_data = await fetch_reviews_api(title, author)
-        cover_url = book_data.get("coverUrl", "")
-        isbn = book_data.get("isbn", "")
-
-        get_store(self.room_name).add_book(shelf_name, title, author, isbn, cover_url)
+        result = await th.add_to_shelf(
+            get_store(self.room_name), title, author, shelf_name
+        )
         await self._notify_shelf_updated()
-        return f"Added '{title}' by {author} to the '{shelf_name}' shelf."
+        return result
 
     @function_tool(description=_tool_descriptions["get_shelf"])
     async def get_shelf(self, shelf_name: str) -> str:
         await self._notify_tool_start("get_shelf")
-        books = get_store(self.room_name).get_shelf(shelf_name)
-        if not books:
-            return f"The '{shelf_name}' shelf is empty or doesn't exist."
-        book_list = ", ".join([f"'{b['title']}' by {b['author']}" for b in books])
-        return f"On '{shelf_name}': {book_list}"
+        return await th.get_shelf(get_store(self.room_name), shelf_name)
 
     @function_tool(description=_tool_descriptions["list_shelves"])
     async def list_shelves(self) -> str:
         await self._notify_tool_start("list_shelves")
-        shelves = get_store(self.room_name).get_all_shelves()
-        if not shelves:
-            return "No shelves yet"
-        summary = []
-        for name, books in shelves.items():
-            count = len(books)
-            summary.append(f"'{name}' ({count} book{'s' if count != 1 else ''})")
-        return "Current shelves: " + ", ".join(summary)
+        return await th.list_shelves(get_store(self.room_name))
 
     @function_tool(description=_tool_descriptions["query_literary_knowledge"])
     async def query_literary_knowledge_tool(self, question: str) -> str:
@@ -127,42 +100,25 @@ class Lila(Agent):
     @function_tool(description=_tool_descriptions["fetch_goodreads_reviews"])
     async def fetch_goodreads_reviews(self, title: str, author: str) -> str:
         await self._notify_tool_start("fetch_goodreads_reviews")
-        data = await search_and_get_reviews(title, author)
-        if data.get("error"):
-            return f"Couldn't get Goodreads reviews: {data['error']}"
-
-        result = f"Goodreads: '{data.get('title')}' — {data.get('rating')}/5 ({data.get('ratings')} ratings)"
-        genres = data.get("genres", [])
-        if genres:
-            result += f". Genres: {', '.join(genres[:3])}"
-
-        reviews = data.get("reviews", [])
-        if reviews:
-            result += ". Top reviews: "
-            snippets = []
-            for r in reviews[:3]:
-                snippets.append(f"{r['user']} ({r['rating']}/5): {r['text']}")
-            result += " | ".join(snippets)
-
-        return result
+        return await th.fetch_goodreads_reviews(title, author)
 
     @function_tool(description=_tool_descriptions["rename_shelf"])
     async def rename_shelf(self, old_name: str, new_name: str) -> str:
         await self._notify_tool_start("rename_shelf")
-        success = get_store(self.room_name).rename_shelf(old_name, new_name)
-        if not success:
-            return f"Couldn't rename — either '{old_name}' doesn't exist or '{new_name}' is already taken."
-        await self._notify_shelf_updated()
-        return f"Renamed shelf '{old_name}' to '{new_name}'."
+        result = await th.rename_shelf(get_store(self.room_name), old_name, new_name)
+        if result.startswith("Renamed"):
+            await self._notify_shelf_updated()
+        return result
 
     @function_tool(description=_tool_descriptions["remove_from_shelf"])
     async def remove_from_shelf(self, title: str, shelf_name: str) -> str:
         await self._notify_tool_start("remove_from_shelf")
-        success = get_store(self.room_name).remove_book(shelf_name, title)
-        if not success:
-            return f"Couldn't find '{title}' on the '{shelf_name}' shelf."
-        await self._notify_shelf_updated()
-        return f"Removed '{title}' from the '{shelf_name}' shelf."
+        result = await th.remove_from_shelf(
+            get_store(self.room_name), shelf_name, title
+        )
+        if result.startswith("Removed"):
+            await self._notify_shelf_updated()
+        return result
 
 
 server = AgentServer()
@@ -262,24 +218,9 @@ async def entrypoint(ctx: agents.JobContext):
         if ev.is_final:
             logger.info("user_said | %s", ev.transcript)
 
-    async def save_session_report():
-        report = ctx.make_session_report(session)
-        report_dict = report.to_dict()
-        timestamp = time.time()
-
-        sessions_dir = os.path.join(os.path.dirname(__file__), "..", "data", "sessions")
-        os.makedirs(sessions_dir, exist_ok=True)
-        filepath = os.path.join(sessions_dir, f"{ctx.room.name}_{timestamp}.json")
-
-        with open(filepath, "w") as f:
-            json.dump(report_dict, f, indent=2, default=str)
-
-        logger.info("session_report_saved | %s", filepath)
-
     async def cleanup_shelves():
         remove_store(room_name)
 
-    ctx.add_shutdown_callback(save_session_report)
     ctx.add_shutdown_callback(cleanup_shelves)
 
     await session.say(

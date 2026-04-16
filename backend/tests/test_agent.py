@@ -29,7 +29,7 @@ class TestSearchBooks:
             ]
         }
         with patch(
-            "agent.agent.search_books_api",
+            "tool_handlers.search_books_api",
             new_callable=AsyncMock,
             return_value=api_response,
         ):
@@ -42,7 +42,7 @@ class TestSearchBooks:
 
     async def test_empty_items(self, lila):
         with patch(
-            "agent.agent.search_books_api",
+            "tool_handlers.search_books_api",
             new_callable=AsyncMock,
             return_value={"items": []},
         ):
@@ -52,7 +52,7 @@ class TestSearchBooks:
 
     async def test_no_items_key(self, lila):
         with patch(
-            "agent.agent.search_books_api", new_callable=AsyncMock, return_value={}
+            "tool_handlers.search_books_api", new_callable=AsyncMock, return_value={}
         ):
             result = await lila.search_books("query")
 
@@ -61,7 +61,7 @@ class TestSearchBooks:
     async def test_limits_to_3(self, lila):
         items = [_make_volume_info(f"Book {i}", [f"Author {i}"]) for i in range(5)]
         with patch(
-            "agent.agent.search_books_api",
+            "tool_handlers.search_books_api",
             new_callable=AsyncMock,
             return_value={"items": items},
         ):
@@ -74,7 +74,7 @@ class TestSearchBooks:
     async def test_missing_author_and_rating(self, lila):
         api_response = {"items": [{"volumeInfo": {"title": "Mystery"}}]}
         with patch(
-            "agent.agent.search_books_api",
+            "tool_handlers.search_books_api",
             new_callable=AsyncMock,
             return_value=api_response,
         ):
@@ -92,7 +92,7 @@ class TestAddToShelf:
         }
         mock_store = MagicMock()
         with patch(
-            "agent.agent.fetch_reviews_api",
+            "tool_handlers.fetch_reviews_api",
             new_callable=AsyncMock,
             return_value=review_data,
         ):
@@ -109,7 +109,7 @@ class TestAddToShelf:
         review_data = {"isbn": "123"}
         mock_store = MagicMock()
         with patch(
-            "agent.agent.fetch_reviews_api",
+            "tool_handlers.fetch_reviews_api",
             new_callable=AsyncMock,
             return_value=review_data,
         ):

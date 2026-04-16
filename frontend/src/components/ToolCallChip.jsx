@@ -1,6 +1,5 @@
 const TOOL_LABELS = {
   search_books: "Searching for books",
-  fetch_book_reviews: "Looking up reviews",
   add_to_shelf: "Adding to your shelf",
   get_shelf: "Checking your shelf",
   list_shelves: "Looking at your shelves",

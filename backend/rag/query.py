@@ -101,13 +101,6 @@ def _get_reranker():
     return _reranker
 
 
-def reset_query_engine():
-    global _index, _course_index, _reranker
-    _index = None
-    _course_index = None
-    _reranker = None
-
-
 def _build_filters(question: str, collection: str) -> MetadataFilters | None:
     lower = question.lower()
     filters = []

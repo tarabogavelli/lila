@@ -93,7 +93,7 @@ export default function App() {
               she's read everything.
             </p>
             <button onClick={startCall} className="start-btn">
-              Call Lila
+              Start Call
             </button>
           </div>
         ) : (

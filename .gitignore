@@ -14,6 +14,7 @@ backend/rag/chroma_store/
 
 # session data
 backend/data/sessions
+backend/rag_test_results.md
 
 # Shelf data (auto-generated at runtime)
 backend/data/shelves.json
