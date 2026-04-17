@@ -184,7 +184,7 @@ body {
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  height: 50vh;
+  height: 65vh;
   animation: fadeIn 0.5s ease-out;
 }
 
@@ -247,16 +247,23 @@ body {
   transform: scale(1.05);
 }
 
+.bookshelves-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .bookshelves {
-  width: 100%;
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  padding: 1rem;
   overflow-y: auto;
-  height: 50vh;
+  height: 65vh;
 }
 
 .shelves-title {
   font-family: 'Playfair Display', serif;
   font-size: 1.3rem;
-  margin-bottom: 1rem;
   color: var(--accent);
   text-align: center;
 }
